@@ -27,6 +27,7 @@
             box-shadow: 0 0 40px rgba(220, 20, 60, 0.4), 0 0 10px rgba(0, 0, 0, 0.8);
             border: 4px solid #4a1010;
             background: #000;
+            cursor: crosshair;
         }
         canvas {
             display: block;
@@ -41,6 +42,7 @@
             font-size: 14px;
             font-weight: bold;
             pointer-events: none;
+            z-index: 5;
         }
         #hud {
             position: absolute;
@@ -58,6 +60,8 @@
             font-size: 20px;
             letter-spacing: 1px;
             text-shadow: 1px 1px 2px #000;
+            z-index: 5;
+            pointer-events: none;
         }
         .hud-block {
             display: flex;
@@ -71,20 +75,21 @@
         }
         #crosshair {
             position: absolute;
-            top: 50%;
+            top: 40%;
             left: 50%;
-            width: 10px;
-            height: 10px;
+            width: 12px;
+            height: 12px;
             transform: translate(-50%, -50%);
             pointer-events: none;
+            z-index: 5;
         }
         #crosshair::before, #crosshair::after {
             content: '';
             position: absolute;
-            background: rgba(255, 50, 50, 0.6);
+            background: rgba(255, 60, 60, 0.8);
         }
-        #crosshair::before { top: 4px; left: 0; width: 10px; height: 2px; }
-        #crosshair::after { top: 0; left: 4px; width: 2px; height: 10px; }
+        #crosshair::before { top: 5px; left: 0; width: 12px; height: 2px; }
+        #crosshair::after { top: 0; left: 5px; width: 2px; height: 12px; }
 
         #start-screen {
             position: absolute;
@@ -92,13 +97,13 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(10, 0, 0, 0.88);
+            background: rgba(10, 0, 0, 0.92);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             color: #fff;
-            z-index: 10;
+            z-index: 20;
             cursor: pointer;
         }
         #start-screen h1 {
@@ -116,14 +121,15 @@
         }
         .btn-start {
             margin-top: 20px;
-            padding: 10px 24px;
+            padding: 12px 28px;
             background: #990000;
             color: #fff;
             border: 2px solid #ff4444;
             font-size: 18px;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
+            border-radius: 4px;
         }
         .btn-start:hover {
             background: #cc0000;
@@ -131,8 +137,18 @@
         #instructions {
             margin-top: 15px;
             font-size: 13px;
-            color: #888;
+            color: #aaa;
             text-align: center;
+            line-height: 1.6;
+        }
+        .key-pill {
+            display: inline-block;
+            background: #252525;
+            border: 1px solid #555;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #ff4444;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -169,35 +185,42 @@
     <!-- Start / Click to Play Screen -->
     <div id="start-screen">
         <h1>DOOM HTML</h1>
-        <p>클릭하여 악마 토벌을 시작하세요!</p>
-        <p>W, A, S, D : 이동 | ←, → 또는 마우스 : 시점 회전</p>
-        <p>SPACE 또는 마우스 좌클릭 : 발사</p>
-        <button class="btn-start">게임 시작 (START)</button>
+        <p>화면을 클릭하면 마우스 조준이 활성화되고 게임이 시작됩니다!</p>
+        <p style="margin-top: 10px;">
+            <span class="key-pill">W</span> <span class="key-pill">A</span> <span class="key-pill">S</span> <span class="key-pill">D</span> 이동 
+            | <span class="key-pill">마우스</span> 또는 <span class="key-pill">←</span> <span class="key-pill">→</span> 회전
+        </p>
+        <p><span class="key-pill">마우스 좌클릭</span> 또는 <span class="key-pill">SPACE</span> : 발사</p>
+        <button class="btn-start" id="start-btn">게임 시작 (START)</button>
     </div>
 </div>
 
 <div id="instructions">
-    💡 <b>조작법:</b> W/S(전진/후진), A/D(좌우이동), 마우스 클릭 or SPACE(발사), 화면 클릭 시 마우스 락 지원
+    💡 <b>조작법:</b> <span class="key-pill">W</span><span class="key-pill">S</span> 전진/후진 | <span class="key-pill">A</span><span class="key-pill">D</span> 좌우 평행이동 | <span class="key-pill">좌클릭</span> 또는 <span class="key-pill">SPACE</span> 발사 | <span class="key-pill">ESC</span> 마우스 해제
 </div>
 
 <script>
 /* 
- * Pure HTML5 Canvas 3D Raycasting Engine (DOOM / Wolfenstein Style)
- * 외부 라이브러리 및 외부 이미지 파일 없이 100% 독립 실행 가능한 코드
+ * Pure HTML5 Canvas 3D Raycasting Engine (DOOM Style)
  */
 
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
 const W = 320;
-const H = 160; // 하단 HUD 높이 40을 제외한 렌더 해상도
+const H = 160; // HUD를 제외한 3D 뷰포트 높이
 canvas.width = W;
 canvas.height = 200;
 
-// 오디오 컨텍스트 (신시사이저 효과음)
+let isGameStarted = false;
+
+// Web Audio API 사운드
 let audioCtx = null;
 function playSound(type) {
     if (!audioCtx) return;
     try {
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.connect(gain);
@@ -206,25 +229,25 @@ function playSound(type) {
 
         if (type === 'shoot') {
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(400, t);
-            osc.frequency.exponentialRampToValueAtTime(40, t + 0.15);
-            gain.gain.setValueAtTime(0.3, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+            osc.frequency.setValueAtTime(350, t);
+            osc.frequency.exponentialRampToValueAtTime(30, t + 0.18);
+            gain.gain.setValueAtTime(0.4, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.18);
             osc.start(t);
-            osc.stop(t + 0.15);
+            osc.stop(t + 0.18);
         } else if (type === 'hit') {
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(150, t);
-            osc.frequency.linearRampToValueAtTime(50, t + 0.1);
-            gain.gain.setValueAtTime(0.4, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            osc.frequency.setValueAtTime(140, t);
+            osc.frequency.linearRampToValueAtTime(40, t + 0.12);
+            gain.gain.setValueAtTime(0.5, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
             osc.start(t);
-            osc.stop(t + 0.1);
+            osc.stop(t + 0.12);
         } else if (type === 'hurt') {
             osc.type = 'square';
             osc.frequency.setValueAtTime(120, t);
-            osc.frequency.linearRampToValueAtTime(60, t + 0.2);
-            gain.gain.setValueAtTime(0.5, t);
+            osc.frequency.linearRampToValueAtTime(50, t + 0.2);
+            gain.gain.setValueAtTime(0.3, t);
             gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
             osc.start(t);
             osc.stop(t + 0.2);
@@ -254,12 +277,11 @@ const MAP = [
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 ];
 
-// 텍스처 생성 (64x64 절차적 픽셀 생성)
+// 텍스처 생성 (64x64 픽셀)
 const TEX_SIZE = 64;
 const textures = [];
 
 function generateTextures() {
-    // 텍스처 1: 벽돌벽 (DOOM Red/Brown Brick)
     const t1 = ctx.createImageData(TEX_SIZE, TEX_SIZE);
     for (let y = 0; y < TEX_SIZE; y++) {
         for (let x = 0; x < TEX_SIZE; x++) {
@@ -271,7 +293,7 @@ function generateTextures() {
                 t1.data[idx+1] = 40 + noise;
                 t1.data[idx+2] = 40 + noise;
             } else {
-                t1.data[idx] = Math.min(255, 130 + noise);
+                t1.data[idx] = Math.min(255, 140 + noise);
                 t1.data[idx+1] = Math.max(0, 35 + noise);
                 t1.data[idx+2] = Math.max(0, 25 + noise);
             }
@@ -280,7 +302,6 @@ function generateTextures() {
     }
     textures[1] = t1;
 
-    // 텍스처 2: 돌 회색벽
     const t2 = ctx.createImageData(TEX_SIZE, TEX_SIZE);
     for (let y = 0; y < TEX_SIZE; y++) {
         for (let x = 0; x < TEX_SIZE; x++) {
@@ -288,13 +309,12 @@ function generateTextures() {
             let val = 70 + ((Math.sin(x/4) * Math.cos(y/4)) * 25) + ((Math.random() * 20) | 0);
             t2.data[idx] = val;
             t2.data[idx+1] = val;
-            t2.data[idx+2] = val + 10;
+            t2.data[idx+2] = val + 15;
             t2.data[idx+3] = 255;
         }
     }
     textures[2] = t2;
 
-    // 텍스처 3: 고어/악마의 벽 (Hell Texture)
     const t3 = ctx.createImageData(TEX_SIZE, TEX_SIZE);
     for (let y = 0; y < TEX_SIZE; y++) {
         for (let x = 0; x < TEX_SIZE; x++) {
@@ -318,66 +338,76 @@ const player = {
     dirX: 1,
     dirY: 0,
     planeX: 0,
-    planeY: 0.66, // FOV 약 66도
+    planeY: 0.66,
     health: 100,
     armor: 50,
     ammo: 50,
     kills: 0,
     shooting: 0,
-    flash: 0
+    flash: 0,
+    invulnerableTime: 0
 };
 
-// 몬스터 (Cacodemon / Imp 스타일)
+// 몬스터 설정: 플레이어 스폰 위치에서 멀리 배치
 const enemies = [
-    { x: 4.5, y: 3.5, hp: 3, alive: true, alert: false },
-    { x: 9.5, y: 3.5, hp: 3, alive: true, alert: false },
-    { x: 13.5, y: 4.5, hp: 4, alive: true, alert: false },
-    { x: 10.5, y: 10.5, hp: 3, alive: true, alert: false },
-    { x: 3.5, y: 13.5, hp: 4, alive: true, alert: false },
-    { x: 8.5, y: 13.5, hp: 5, alive: true, alert: false }
+    { x: 5.5, y: 5.5, hp: 3, alive: true, alert: false, attackCooldown: 1.0 },
+    { x: 9.5, y: 3.5, hp: 3, alive: true, alert: false, attackCooldown: 1.0 },
+    { x: 13.5, y: 4.5, hp: 4, alive: true, alert: false, attackCooldown: 1.0 },
+    { x: 10.5, y: 10.5, hp: 3, alive: true, alert: false, attackCooldown: 1.0 },
+    { x: 3.5, y: 13.5, hp: 4, alive: true, alert: false, attackCooldown: 1.0 },
+    { x: 8.5, y: 13.5, hp: 5, alive: true, alert: false, attackCooldown: 1.0 }
 ];
 document.getElementById('total-kills').innerText = enemies.length;
 
-// 키 입력 핸들링
+// 키보드 입력 핸들링 (대소문자/한글 IME 모두 지원)
 const keys = {};
 window.addEventListener('keydown', e => {
+    keys[e.code] = true;
     keys[e.key.toLowerCase()] = true;
-    if (e.key === ' ' || e.code === 'Space') {
+
+    if (e.code === 'Space' || e.key === ' ') {
         shootGun();
         e.preventDefault();
     }
 });
 window.addEventListener('keyup', e => {
+    keys[e.code] = false;
     keys[e.key.toLowerCase()] = false;
 });
 
-// 마우스 조작 & 포인터 락
+// 마우스 및 포인터 락
 const gameContainer = document.getElementById('game-container');
 const startScreen = document.getElementById('start-screen');
 
-startScreen.addEventListener('click', () => {
+function startGame() {
+    isGameStarted = true;
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
     startScreen.style.display = 'none';
-    gameContainer.requestPointerLock?.();
-});
+    try {
+        gameContainer.requestPointerLock();
+    } catch(err) {}
+}
 
-document.addEventListener('pointerlockchange', () => {
-    if (document.pointerLockElement !== gameContainer) {
-        // 일시정지 또는 안내
-    }
-});
+startScreen.addEventListener('click', startGame);
 
-window.addEventListener('mousemove', e => {
-    if (document.pointerLockElement === gameContainer) {
-        rotatePlayer(e.movementX * 0.0035);
-    }
-});
-
-canvas.addEventListener('mousedown', e => {
+// 게임 컨테이너 클릭 시 언제든 포인터 락 재요청 및 발사
+gameContainer.addEventListener('mousedown', e => {
+    if (!isGameStarted) return;
     if (e.button === 0) {
+        if (document.pointerLockElement !== gameContainer) {
+            try { gameContainer.requestPointerLock(); } catch(err) {}
+        }
         shootGun();
+    }
+});
+
+// 마우스 회전 (포인터 락 상관없이 마우스 이동 감지 지원)
+window.addEventListener('mousemove', e => {
+    if (!isGameStarted) return;
+    if (document.pointerLockElement === gameContainer) {
+        rotatePlayer(e.movementX * 0.0032);
     }
 });
 
@@ -392,13 +422,14 @@ function rotatePlayer(rotSpeed) {
 }
 
 function shootGun() {
+    if (!isGameStarted) return;
     if (player.shooting > 0 || player.ammo <= 0) return;
     player.ammo--;
     player.shooting = 8;
     player.flash = 3;
     playSound('shoot');
 
-    // 샷건 히트스캔 판정 (화면 중앙 타겟 레이)
+    // 샷건 히트스캔 판정 (중앙 조준점 근처)
     let bestDist = Infinity;
     let hitEnemy = null;
 
@@ -408,12 +439,12 @@ function shootGun() {
         const dy = enemy.y - player.y;
         const dist = Math.hypot(dx, dy);
 
-        // 정면 각도 계산
+        // 조준 각도 검사 (더 넓고 관대하게 판정: 0.85)
         const dot = (dx * player.dirX + dy * player.dirY) / dist;
-        if (dot > 0.92 && dist < bestDist) {
-            // 벽에 가려졌는지 확인하는 간이 가시선 검사
+        if (dot > 0.85 && dist < bestDist) {
+            // 벽 가림 체크
             let blocked = false;
-            let steps = Math.floor(dist * 3);
+            let steps = Math.floor(dist * 4);
             for (let i = 1; i < steps; i++) {
                 let checkX = Math.floor(player.x + (dx / steps) * i);
                 let checkY = Math.floor(player.y + (dy / steps) * i);
@@ -432,6 +463,7 @@ function shootGun() {
     if (hitEnemy) {
         hitEnemy.hp--;
         playSound('hit');
+        hitEnemy.alert = true; // 맞으면 바로 추적
         if (hitEnemy.hp <= 0) {
             hitEnemy.alive = false;
             player.kills++;
@@ -453,41 +485,44 @@ function updateHUD() {
     else face.innerText = '💀';
 }
 
-// 거리 버퍼 (스프라이트 렌더링용)
 const zBuffer = new Float64Array(W);
 
-// 메인 루프 업데이트
+// 업데이트 루프
 function update(dt) {
-    const moveSpeed = 3.0 * dt;
-    const rotSpeed = 2.2 * dt;
+    if (!isGameStarted) return; // 게임 시작 전에는 업데이트 중단
 
-    if (keys['arrowleft']) rotatePlayer(-rotSpeed);
-    if (keys['arrowright']) rotatePlayer(rotSpeed);
+    const moveSpeed = 3.2 * dt;
+    const rotSpeed = 2.4 * dt;
+
+    // 회전 (화살표 좌우키)
+    if (keys['ArrowLeft'] || keys['arrowleft']) rotatePlayer(-rotSpeed);
+    if (keys['ArrowRight'] || keys['arrowright']) rotatePlayer(rotSpeed);
 
     let moveX = 0;
     let moveY = 0;
 
-    if (keys['w']) {
+    // 이동 (WASD + 화살표 위/아래)
+    if (keys['KeyW'] || keys['w']) {
         moveX += player.dirX * moveSpeed;
         moveY += player.dirY * moveSpeed;
     }
-    if (keys['s']) {
+    if (keys['KeyS'] || keys['s']) {
         moveX -= player.dirX * moveSpeed;
         moveY -= player.dirY * moveSpeed;
     }
-    if (keys['d']) { // 스트레이프 우측
+    if (keys['KeyD'] || keys['d']) {
         moveX += -player.dirY * moveSpeed;
         moveY += player.dirX * moveSpeed;
     }
-    if (keys['a']) { // 스트레이프 좌측
+    if (keys['KeyA'] || keys['a']) {
         moveX -= -player.dirY * moveSpeed;
         moveY -= player.dirX * moveSpeed;
     }
 
-    // 충돌 처리 (벽 슬라이딩)
+    // 충돌 판정 및 이동 적용
+    const buffer = 0.25;
     const newX = player.x + moveX;
     const newY = player.y + moveY;
-    const buffer = 0.2;
 
     if (MAP[Math.floor(player.y) * MAP_W + Math.floor(newX + (moveX > 0 ? buffer : -buffer))] === 0) {
         player.x = newX;
@@ -498,26 +533,45 @@ function update(dt) {
 
     if (player.shooting > 0) player.shooting--;
     if (player.flash > 0) player.flash--;
+    if (player.invulnerableTime > 0) player.invulnerableTime -= dt;
 
-    // 몬스터 AI (플레이어 접근 및 공격)
+    // 몬스터 AI & 쿨다운 공격
     for (const enemy of enemies) {
         if (!enemy.alive) continue;
         const dx = player.x - enemy.x;
         const dy = player.y - enemy.y;
         const dist = Math.hypot(dx, dy);
 
-        if (dist < 8) enemy.alert = true;
-        if (enemy.alert && dist > 0.8) {
-            enemy.x += (dx / dist) * 1.2 * dt;
-            enemy.y += (dy / dist) * 1.2 * dt;
-        } else if (dist <= 0.8 && Math.random() < 0.03) {
-            // 공격
-            player.health -= 5;
-            playSound('hurt');
-            updateHUD();
-            if (player.health <= 0) {
-                alert('사망하셨습니다! 다시 도전하세요.');
-                window.location.reload();
+        if (enemy.attackCooldown > 0) enemy.attackCooldown -= dt;
+
+        // 시야 거리 7 이내이거나 이미 경계 상태일 때 추적
+        if (dist < 7) enemy.alert = true;
+
+        if (enemy.alert) {
+            if (dist > 0.9) {
+                // 이동 속도 적당히 조정 (1.0)
+                enemy.x += (dx / dist) * 1.0 * dt;
+                enemy.y += (dy / dist) * 1.0 * dt;
+            } else if (dist <= 0.9 && enemy.attackCooldown <= 0 && player.invulnerableTime <= 0) {
+                // 초당 최대 1번만 공격
+                enemy.attackCooldown = 1.0;
+                player.invulnerableTime = 0.5; // 무적 시간 0.5초 부여
+                
+                if (player.armor > 0) {
+                    player.armor = Math.max(0, player.armor - 5);
+                    player.health -= 5;
+                } else {
+                    player.health -= 10;
+                }
+
+                playSound('hurt');
+                updateHUD();
+
+                if (player.health <= 0) {
+                    alert('악마에게 쓰러졌습니다! (Game Over)');
+                    window.location.reload();
+                    return;
+                }
             }
         }
     }
@@ -559,7 +613,7 @@ function render() {
 
         let stepX, stepY;
         let hit = 0;
-        let side = 0; // 0: X축, 1: Y축
+        let side = 0;
 
         if (rayDirX < 0) {
             stepX = -1;
@@ -576,7 +630,6 @@ function render() {
             sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
         }
 
-        // DDA 탐색
         while (hit === 0) {
             if (sideDistX < sideDistY) {
                 sideDistX += deltaDistX;
@@ -595,14 +648,12 @@ function render() {
 
         zBuffer[x] = perpWallDist;
 
-        // 벽 높이 계산
         const lineHeight = Math.floor(H / perpWallDist);
         let drawStart = Math.floor(-lineHeight / 2 + H / 2);
         if (drawStart < 0) drawStart = 0;
         let drawEnd = Math.floor(lineHeight / 2 + H / 2);
         if (drawEnd >= H) drawEnd = H - 1;
 
-        // 텍스처 좌표 계산
         let wallX;
         if (side === 0) wallX = player.y + perpWallDist * rayDirY;
         else wallX = player.x + perpWallDist * rayDirX;
@@ -615,8 +666,6 @@ function render() {
         const tex = textures[hit] || textures[1];
         const step = TEX_SIZE / lineHeight;
         let texPos = (drawStart - H / 2 + lineHeight / 2) * step;
-
-        // 조명 / 그림자 처리 (멀어질수록 어두워짐)
         const shade = Math.min(1.0, 1.8 / (perpWallDist * 0.7 + 0.6)) * (side === 1 ? 0.75 : 1.0);
 
         for (let y = drawStart; y < drawEnd; y++) {
@@ -636,25 +685,26 @@ function render() {
     // 2. 적 스프라이트 렌더링
     renderSprites();
 
-    // 3. 둠 스타일 샷건 렌더링
+    // 3. 무기 렌더링
     renderWeapon();
 
-    // 플래시 효과
+    // 총구 화염 및 피격 플래시
     if (player.flash > 0) {
-        ctx.fillStyle = 'rgba(255, 230, 150, 0.3)';
+        ctx.fillStyle = 'rgba(255, 230, 150, 0.35)';
+        ctx.fillRect(0, 0, W, H);
+    }
+    if (player.invulnerableTime > 0.3) {
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
         ctx.fillRect(0, 0, W, H);
     }
 }
 
-// 스프라이트 (적) 렌더링
+// 스프라이트 렌더링
 function renderSprites() {
-    // 플레이어와의 거리 순으로 정렬
-    const sortedEnemies = enemies.map((e, i) => {
-        return {
-            ...e,
-            dist: ((player.x - e.x)**2 + (player.y - e.y)**2)
-        };
-    }).sort((a, b) => b.dist - a.dist);
+    const sortedEnemies = enemies.map(e => ({
+        ...e,
+        dist: ((player.x - e.x)**2 + (player.y - e.y)**2)
+    })).sort((a, b) => b.dist - a.dist);
 
     for (const e of sortedEnemies) {
         if (!e.alive) continue;
@@ -662,7 +712,6 @@ function renderSprites() {
         const spriteX = e.x - player.x;
         const spriteY = e.y - player.y;
 
-        // 카메라 변환
         const invDet = 1.0 / (player.planeX * player.dirY - player.dirX * player.planeY);
         const transformX = invDet * (player.dirY * spriteX - player.dirX * spriteY);
         const transformY = invDet * (-player.planeY * spriteX + player.planeX * spriteY);
@@ -683,7 +732,6 @@ function renderSprites() {
         let drawEndX = Math.floor(spriteWidth / 2 + spriteScreenX);
         if (drawEndX >= W) drawEndX = W - 1;
 
-        // 절차적 카코데몬 / 임프 스타일 몬스터 그리기
         const shade = Math.min(1.0, 1.6 / (transformY * 0.7 + 0.6));
         for (let stripe = drawStartX; stripe < drawEndX; stripe++) {
             if (transformY < zBuffer[stripe]) {
@@ -691,19 +739,15 @@ function renderSprites() {
                 
                 for (let y = drawStartY; y < drawEndY; y++) {
                     const texYRatio = (y - (-spriteHeight / 2 + H / 2)) / spriteHeight;
-                    
-                    // 원형 몸체 계산
                     const distFromCenter = Math.hypot(texXRatio - 0.5, texYRatio - 0.5);
                     if (distFromCenter < 0.42) {
                         ctx.fillStyle = `rgb(${Math.floor(180 * shade)}, ${Math.floor(20 * shade)}, ${Math.floor(20 * shade)})`;
                         
-                        // 큰 외눈박이 눈 (Cacodemon Eye)
                         const eyeDist = Math.hypot(texXRatio - 0.5, texYRatio - 0.4);
                         if (eyeDist < 0.12) {
-                            ctx.fillStyle = '#44ff44'; // 초록빛 악마 눈
-                            if (eyeDist < 0.05) ctx.fillStyle = '#000000'; // 눈동자
+                            ctx.fillStyle = '#44ff44';
+                            if (eyeDist < 0.05) ctx.fillStyle = '#000000';
                         }
-                        // 입과 이빨
                         if (texYRatio > 0.55 && texYRatio < 0.72 && Math.abs(texXRatio - 0.5) < 0.25) {
                             ctx.fillStyle = (Math.floor(texXRatio * 20) % 2 === 0) ? '#ffffff' : '#220000';
                         }
@@ -716,7 +760,7 @@ function renderSprites() {
     }
 }
 
-// 샷건 총기 렌더링
+// 샷건 렌더링
 function renderWeapon() {
     const gunX = W / 2;
     const gunY = H + 5;
@@ -725,12 +769,12 @@ function renderWeapon() {
     ctx.save();
     ctx.translate(gunX, gunY - recoil);
 
-    // 총신 (더블 배럴 샷건 스타일)
+    // 총신
     ctx.fillStyle = '#222';
     ctx.fillRect(-18, -45, 16, 45);
     ctx.fillRect(2, -45, 16, 45);
 
-    // 총구 하이라이트
+    // 총구
     ctx.fillStyle = '#444';
     ctx.fillRect(-16, -45, 12, 6);
     ctx.fillRect(4, -45, 12, 6);
@@ -741,11 +785,11 @@ function renderWeapon() {
     ctx.arc(10, -42, 4, 0, Math.PI * 2);
     ctx.fill();
 
-    // 총기 손잡이 / 몸체
-    ctx.fillStyle = '#5c2c16'; // 나무 개머리판 느낌
+    // 개머리판
+    ctx.fillStyle = '#5c2c16';
     ctx.fillRect(-14, -18, 28, 25);
 
-    // 총구 화염 (Muzzle Flash)
+    // 머즐 플래시
     if (player.shooting > 4) {
         ctx.fillStyle = '#ffcc00';
         ctx.beginPath();
@@ -766,7 +810,6 @@ function renderWeapon() {
     ctx.restore();
 }
 
-// FPS 카운터 및 루프
 let lastTime = performance.now();
 let frames = 0;
 let fpsTimer = 0;
@@ -778,7 +821,6 @@ function loop(currentTime) {
     update(dt);
     render();
 
-    // FPS 계산
     frames++;
     fpsTimer += dt;
     if (fpsTimer >= 1.0) {
