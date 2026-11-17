@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS-DOOM | Pure HTML5 Canvas Raycaster</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #0b0b0d;
+            color: #d11a2a;
+            font-family: 'Courier New', monospace, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 40px rgba(220, 20, 60, 0.4), 0 0 10px rgba(0, 0, 0, 0.8);
+            border: 4px solid #4a1010;
+            background: #000;
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #ff3333;
+            text-shadow: 2px 2px #000;
+            font-size: 14px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        #hud {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 48px;
+            background: linear-gradient(180deg, #303030 0%, #151515 100%);
+            border-top: 3px solid #5a5a5a;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            color: #e60000;
+            font-family: 'Impact', sans-serif;
+            font-size: 20px;
+            letter-spacing: 1px;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .hud-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .hud-label {
+            font-size: 10px;
+            color: #888;
+            font-family: sans-serif;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 50, 50, 0.6);
+        }
+        #crosshair::before { top: 4px; left: 0; width: 10px; height: 2px; }
+        #crosshair::after { top: 0; left: 4px; width: 2px; height: 10px; }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 0, 0, 0.88);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            z-index: 10;
+            cursor: pointer;
+        }
+        #start-screen h1 {
+            color: #ff2200;
+            font-size: 48px;
+            font-family: 'Impact', fantasy;
+            letter-spacing: 5px;
+            text-shadow: 0 0 20px #ff0000;
+            margin-bottom: 12px;
+        }
+        #start-screen p {
+            margin: 6px 0;
+            color: #ccc;
+            font-size: 14px;
+        }
+        .btn-start {
+            margin-top: 20px;
+            padding: 10px 24px;
+            background: #990000;
+            color: #fff;
+            border: 2px solid #ff4444;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+        }
+        .btn-start:hover {
+            background: #cc0000;
+        }
+        #instructions {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #888;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="screen" width="320" height="200" style="width: 640px; height: 400px;"></canvas>
+    <div id="crosshair"></div>
+    <div id="ui-overlay">
+        <span>FPS: <span id="fps">60</span></span><br>
+        <span>KILLS: <span id="kills">0</span> / <span id="total-kills">0</span></span>
+    </div>
+
+    <!-- Retro DOOM Status Bar -->
+    <div id="hud">
+        <div class="hud-block">
+            <span class="hud-label">AMMO</span>
+            <span id="hud-ammo">50</span>
+        </div>
+        <div class="hud-block">
+            <span class="hud-label">HEALTH</span>
+            <span id="hud-health">100%</span>
+        </div>
+        <div class="hud-block">
+            <span class="hud-label">STATUS</span>
+            <span id="hud-face">😈</span>
+        </div>
+        <div class="hud-block">
+            <span class="hud-label">ARMOR</span>
+            <span id="hud-armor">50%</span>
+        </div>
+    </div>
+
+    <!-- Start / Click to Play Screen -->
+    <div id="start-screen">
+        <h1>DOOM HTML</h1>
+        <p>클릭하여 악마 토벌을 시작하세요!</p>
+        <p>W, A, S, D : 이동 | ←, → 또는 마우스 : 시점 회전</p>
+        <p>SPACE 또는 마우스 좌클릭 : 발사</p>
+        <button class="btn-start">게임 시작 (START)</button>
+    </div>
+</div>
+
+<div id="instructions">
+    💡 <b>조작법:</b> W/S(전진/후진), A/D(좌우이동), 마우스 클릭 or SPACE(발사), 화면 클릭 시 마우스 락 지원
+</div>
+
+<script>
+/* 
+ * Pure HTML5 Canvas 3D Raycasting Engine (DOOM / Wolfenstein Style)
+ * 외부 라이브러리 및 외부 이미지 파일 없이 100% 독립 실행 가능한 코드
+ */
+
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d');
+const W = 320;
+const H = 160; // 하단 HUD 높이 40을 제외한 렌더 해상도
+canvas.width = W;
+canvas.height = 200;
+
+// 오디오 컨텍스트 (신시사이저 효과음)
+let audioCtx = null;
+function playSound(type) {
+    if (!audioCtx) return;
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const t = audioCtx.currentTime;
+
+        if (type === 'shoot') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(400, t);
+            osc.frequency.exponentialRampToValueAtTime(40, t + 0.15);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+            osc.start(t);
+            osc.stop(t + 0.15);
+        } else if (type === 'hit') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(150, t);
+            osc.frequency.linearRampToValueAtTime(50, t + 0.1);
+            gain.gain.setValueAtTime(0.4, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            osc.start(t);
+            osc.stop(t + 0.1);
+        } else if (type === 'hurt') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(120, t);
+            osc.frequency.linearRampToValueAtTime(60, t + 0.2);
+            gain.gain.setValueAtTime(0.5, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+            osc.start(t);
+            osc.stop(t + 0.2);
+        }
+    } catch(e) {}
+}
+
+// 맵 정의 (1=벽돌, 2=돌벽, 3=악마문양벽, 0=빈공간)
+const MAP_W = 16;
+const MAP_H = 16;
+const MAP = [
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,
+    1,0,1,1,0,0,1,0,3,3,3,0,1,1,0,1,
+    1,0,1,0,0,0,0,0,3,0,3,0,0,1,0,1,
+    1,0,1,0,2,2,2,0,3,0,3,0,0,1,0,1,
+    1,0,0,0,2,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,2,0,2,2,0,1,1,1,0,0,0,1,
+    1,1,2,0,0,0,0,2,0,1,0,1,0,2,2,1,
+    1,0,0,0,0,0,0,2,0,1,0,1,0,0,0,1,
+    1,0,3,3,0,2,2,2,0,1,1,1,0,0,0,1,
+    1,0,3,0,0,0,0,0,0,0,0,0,0,2,0,1,
+    1,0,3,0,1,1,1,1,0,2,2,0,0,2,0,1,
+    1,0,0,0,1,0,0,0,0,0,2,0,0,0,0,1,
+    1,0,2,0,1,0,3,3,3,0,2,2,2,2,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+];
+
+// 텍스처 생성 (64x64 절차적 픽셀 생성)
+const TEX_SIZE = 64;
+const textures = [];
+
+function generateTextures() {
+    // 텍스처 1: 벽돌벽 (DOOM Red/Brown Brick)
+    const t1 = ctx.createImageData(TEX_SIZE, TEX_SIZE);
+    for (let y = 0; y < TEX_SIZE; y++) {
+        for (let x = 0; x < TEX_SIZE; x++) {
+            const idx = (y * TEX_SIZE + x) * 4;
+            let isMorter = (y % 16 === 0) || ((y < 16 || (y >= 32 && y < 48)) ? (x % 32 === 0) : ((x + 16) % 32 === 0));
+            let noise = (Math.random() * 30 - 15) | 0;
+            if (isMorter) {
+                t1.data[idx] = 40 + noise;
+                t1.data[idx+1] = 40 + noise;
+                t1.data[idx+2] = 40 + noise;
+            } else {
+                t1.data[idx] = Math.min(255, 130 + noise);
+                t1.data[idx+1] = Math.max(0, 35 + noise);
+                t1.data[idx+2] = Math.max(0, 25 + noise);
+            }
+            t1.data[idx+3] = 255;
+        }
+    }
+    textures[1] = t1;
+
+    // 텍스처 2: 돌 회색벽
+    const t2 = ctx.createImageData(TEX_SIZE, TEX_SIZE);
+    for (let y = 0; y < TEX_SIZE; y++) {
+        for (let x = 0; x < TEX_SIZE; x++) {
+            const idx = (y * TEX_SIZE + x) * 4;
+            let val = 70 + ((Math.sin(x/4) * Math.cos(y/4)) * 25) + ((Math.random() * 20) | 0);
+            t2.data[idx] = val;
+            t2.data[idx+1] = val;
+            t2.data[idx+2] = val + 10;
+            t2.data[idx+3] = 255;
+        }
+    }
+    textures[2] = t2;
+
+    // 텍스처 3: 고어/악마의 벽 (Hell Texture)
+    const t3 = ctx.createImageData(TEX_SIZE, TEX_SIZE);
+    for (let y = 0; y < TEX_SIZE; y++) {
+        for (let x = 0; x < TEX_SIZE; x++) {
+            const idx = (y * TEX_SIZE + x) * 4;
+            let d = Math.hypot(x - 32, y - 32);
+            let val = Math.max(0, 180 - d * 4) + ((Math.random() * 40) | 0);
+            t3.data[idx] = Math.min(255, val + 50);
+            t3.data[idx+1] = Math.max(0, (val / 3) | 0);
+            t3.data[idx+2] = 10;
+            t3.data[idx+3] = 255;
+        }
+    }
+    textures[3] = t3;
+}
+generateTextures();
+
+// 플레이어 상태
+const player = {
+    x: 2.5,
+    y: 2.5,
+    dirX: 1,
+    dirY: 0,
+    planeX: 0,
+    planeY: 0.66, // FOV 약 66도
+    health: 100,
+    armor: 50,
+    ammo: 50,
+    kills: 0,
+    shooting: 0,
+    flash: 0
+};
+
+// 몬스터 (Cacodemon / Imp 스타일)
+const enemies = [
+    { x: 4.5, y: 3.5, hp: 3, alive: true, alert: false },
+    { x: 9.5, y: 3.5, hp: 3, alive: true, alert: false },
+    { x: 13.5, y: 4.5, hp: 4, alive: true, alert: false },
+    { x: 10.5, y: 10.5, hp: 3, alive: true, alert: false },
+    { x: 3.5, y: 13.5, hp: 4, alive: true, alert: false },
+    { x: 8.5, y: 13.5, hp: 5, alive: true, alert: false }
+];
+document.getElementById('total-kills').innerText = enemies.length;
+
+// 키 입력 핸들링
+const keys = {};
+window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key === ' ' || e.code === 'Space') {
+        shootGun();
+        e.preventDefault();
+    }
+});
+window.addEventListener('keyup', e => {
+    keys[e.key.toLowerCase()] = false;
+});
+
+// 마우스 조작 & 포인터 락
+const gameContainer = document.getElementById('game-container');
+const startScreen = document.getElementById('start-screen');
+
+startScreen.addEventListener('click', () => {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    startScreen.style.display = 'none';
+    gameContainer.requestPointerLock?.();
+});
+
+document.addEventListener('pointerlockchange', () => {
+    if (document.pointerLockElement !== gameContainer) {
+        // 일시정지 또는 안내
+    }
+});
+
+window.addEventListener('mousemove', e => {
+    if (document.pointerLockElement === gameContainer) {
+        rotatePlayer(e.movementX * 0.0035);
+    }
+});
+
+canvas.addEventListener('mousedown', e => {
+    if (e.button === 0) {
+        shootGun();
+    }
+});
+
+function rotatePlayer(rotSpeed) {
+    const oldDirX = player.dirX;
+    player.dirX = player.dirX * Math.cos(rotSpeed) - player.dirY * Math.sin(rotSpeed);
+    player.dirY = oldDirX * Math.sin(rotSpeed) + player.dirY * Math.cos(rotSpeed);
+
+    const oldPlaneX = player.planeX;
+    player.planeX = player.planeX * Math.cos(rotSpeed) - player.planeY * Math.sin(rotSpeed);
+    player.planeY = oldPlaneX * Math.sin(rotSpeed) + player.planeY * Math.cos(rotSpeed);
+}
+
+function shootGun() {
+    if (player.shooting > 0 || player.ammo <= 0) return;
+    player.ammo--;
+    player.shooting = 8;
+    player.flash = 3;
+    playSound('shoot');
+
+    // 샷건 히트스캔 판정 (화면 중앙 타겟 레이)
+    let bestDist = Infinity;
+    let hitEnemy = null;
+
+    for (const enemy of enemies) {
+        if (!enemy.alive) continue;
+        const dx = enemy.x - player.x;
+        const dy = enemy.y - player.y;
+        const dist = Math.hypot(dx, dy);
+
+        // 정면 각도 계산
+        const dot = (dx * player.dirX + dy * player.dirY) / dist;
+        if (dot > 0.92 && dist < bestDist) {
+            // 벽에 가려졌는지 확인하는 간이 가시선 검사
+            let blocked = false;
+            let steps = Math.floor(dist * 3);
+            for (let i = 1; i < steps; i++) {
+                let checkX = Math.floor(player.x + (dx / steps) * i);
+                let checkY = Math.floor(player.y + (dy / steps) * i);
+                if (MAP[checkY * MAP_W + checkX] > 0) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (!blocked) {
+                bestDist = dist;
+                hitEnemy = enemy;
+            }
+        }
+    }
+
+    if (hitEnemy) {
+        hitEnemy.hp--;
+        playSound('hit');
+        if (hitEnemy.hp <= 0) {
+            hitEnemy.alive = false;
+            player.kills++;
+            document.getElementById('kills').innerText = player.kills;
+        }
+    }
+    updateHUD();
+}
+
+function updateHUD() {
+    document.getElementById('hud-ammo').innerText = player.ammo;
+    document.getElementById('hud-health').innerText = Math.max(0, player.health) + '%';
+    document.getElementById('hud-armor').innerText = player.armor + '%';
+
+    const face = document.getElementById('hud-face');
+    if (player.health > 70) face.innerText = '😈';
+    else if (player.health > 30) face.innerText = '😣';
+    else if (player.health > 0) face.innerText = '😱';
+    else face.innerText = '💀';
+}
+
+// 거리 버퍼 (스프라이트 렌더링용)
+const zBuffer = new Float64Array(W);
+
+// 메인 루프 업데이트
+function update(dt) {
+    const moveSpeed = 3.0 * dt;
+    const rotSpeed = 2.2 * dt;
+
+    if (keys['arrowleft']) rotatePlayer(-rotSpeed);
+    if (keys['arrowright']) rotatePlayer(rotSpeed);
+
+    let moveX = 0;
+    let moveY = 0;
+
+    if (keys['w']) {
+        moveX += player.dirX * moveSpeed;
+        moveY += player.dirY * moveSpeed;
+    }
+    if (keys['s']) {
+        moveX -= player.dirX * moveSpeed;
+        moveY -= player.dirY * moveSpeed;
+    }
+    if (keys['d']) { // 스트레이프 우측
+        moveX += -player.dirY * moveSpeed;
+        moveY += player.dirX * moveSpeed;
+    }
+    if (keys['a']) { // 스트레이프 좌측
+        moveX -= -player.dirY * moveSpeed;
+        moveY -= player.dirX * moveSpeed;
+    }
+
+    // 충돌 처리 (벽 슬라이딩)
+    const newX = player.x + moveX;
+    const newY = player.y + moveY;
+    const buffer = 0.2;
+
+    if (MAP[Math.floor(player.y) * MAP_W + Math.floor(newX + (moveX > 0 ? buffer : -buffer))] === 0) {
+        player.x = newX;
+    }
+    if (MAP[Math.floor(newY + (moveY > 0 ? buffer : -buffer)) * MAP_W + Math.floor(player.x)] === 0) {
+        player.y = newY;
+    }
+
+    if (player.shooting > 0) player.shooting--;
+    if (player.flash > 0) player.flash--;
+
+    // 몬스터 AI (플레이어 접근 및 공격)
+    for (const enemy of enemies) {
+        if (!enemy.alive) continue;
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 8) enemy.alert = true;
+        if (enemy.alert && dist > 0.8) {
+            enemy.x += (dx / dist) * 1.2 * dt;
+            enemy.y += (dy / dist) * 1.2 * dt;
+        } else if (dist <= 0.8 && Math.random() < 0.03) {
+            // 공격
+            player.health -= 5;
+            playSound('hurt');
+            updateHUD();
+            if (player.health <= 0) {
+                alert('사망하셨습니다! 다시 도전하세요.');
+                window.location.reload();
+            }
+        }
+    }
+}
+
+// 렌더링 함수
+function render() {
+    const imgData = ctx.getImageData(0, 0, W, H);
+    const pixels = imgData.data;
+
+    // 천장 & 바닥 렌더링
+    for (let y = 0; y < H; y++) {
+        const isFloor = y > H / 2;
+        const r = isFloor ? 45 : 20;
+        const g = isFloor ? 30 : 5;
+        const b = isFloor ? 25 : 5;
+        for (let x = 0; x < W; x++) {
+            const idx = (y * W + x) * 4;
+            pixels[idx] = r;
+            pixels[idx+1] = g;
+            pixels[idx+2] = b;
+            pixels[idx+3] = 255;
+        }
+    }
+
+    // 1. 벽 레이캐스팅
+    for (let x = 0; x < W; x++) {
+        const cameraX = (2 * x) / W - 1;
+        const rayDirX = player.dirX + player.planeX * cameraX;
+        const rayDirY = player.dirY + player.planeY * cameraX;
+
+        let mapX = Math.floor(player.x);
+        let mapY = Math.floor(player.y);
+
+        let sideDistX, sideDistY;
+        const deltaDistX = Math.abs(1 / rayDirX);
+        const deltaDistY = Math.abs(1 / rayDirY);
+        let perpWallDist;
+
+        let stepX, stepY;
+        let hit = 0;
+        let side = 0; // 0: X축, 1: Y축
+
+        if (rayDirX < 0) {
+            stepX = -1;
+            sideDistX = (player.x - mapX) * deltaDistX;
+        } else {
+            stepX = 1;
+            sideDistX = (mapX + 1.0 - player.x) * deltaDistX;
+        }
+        if (rayDirY < 0) {
+            stepY = -1;
+            sideDistY = (player.y - mapY) * deltaDistY;
+        } else {
+            stepY = 1;
+            sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
+        }
+
+        // DDA 탐색
+        while (hit === 0) {
+            if (sideDistX < sideDistY) {
+                sideDistX += deltaDistX;
+                mapX += stepX;
+                side = 0;
+            } else {
+                sideDistY += deltaDistY;
+                mapY += stepY;
+                side = 1;
+            }
+            if (MAP[mapY * MAP_W + mapX] > 0) hit = MAP[mapY * MAP_W + mapX];
+        }
+
+        if (side === 0) perpWallDist = (mapX - player.x + (1 - stepX) / 2) / rayDirX;
+        else perpWallDist = (mapY - player.y + (1 - stepY) / 2) / rayDirY;
+
+        zBuffer[x] = perpWallDist;
+
+        // 벽 높이 계산
+        const lineHeight = Math.floor(H / perpWallDist);
+        let drawStart = Math.floor(-lineHeight / 2 + H / 2);
+        if (drawStart < 0) drawStart = 0;
+        let drawEnd = Math.floor(lineHeight / 2 + H / 2);
+        if (drawEnd >= H) drawEnd = H - 1;
+
+        // 텍스처 좌표 계산
+        let wallX;
+        if (side === 0) wallX = player.y + perpWallDist * rayDirY;
+        else wallX = player.x + perpWallDist * rayDirX;
+        wallX -= Math.floor(wallX);
+
+        let texX = Math.floor(wallX * TEX_SIZE);
+        if (side === 0 && rayDirX > 0) texX = TEX_SIZE - texX - 1;
+        if (side === 1 && rayDirY < 0) texX = TEX_SIZE - texX - 1;
+
+        const tex = textures[hit] || textures[1];
+        const step = TEX_SIZE / lineHeight;
+        let texPos = (drawStart - H / 2 + lineHeight / 2) * step;
+
+        // 조명 / 그림자 처리 (멀어질수록 어두워짐)
+        const shade = Math.min(1.0, 1.8 / (perpWallDist * 0.7 + 0.6)) * (side === 1 ? 0.75 : 1.0);
+
+        for (let y = drawStart; y < drawEnd; y++) {
+            const texY = Math.floor(texPos) & (TEX_SIZE - 1);
+            texPos += step;
+            const texIdx = (texY * TEX_SIZE + texX) * 4;
+            const scrIdx = (y * W + x) * 4;
+
+            pixels[scrIdx] = tex.data[texIdx] * shade;
+            pixels[scrIdx+1] = tex.data[texIdx+1] * shade;
+            pixels[scrIdx+2] = tex.data[texIdx+2] * shade;
+        }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+
+    // 2. 적 스프라이트 렌더링
+    renderSprites();
+
+    // 3. 둠 스타일 샷건 렌더링
+    renderWeapon();
+
+    // 플래시 효과
+    if (player.flash > 0) {
+        ctx.fillStyle = 'rgba(255, 230, 150, 0.3)';
+        ctx.fillRect(0, 0, W, H);
+    }
+}
+
+// 스프라이트 (적) 렌더링
+function renderSprites() {
+    // 플레이어와의 거리 순으로 정렬
+    const sortedEnemies = enemies.map((e, i) => {
+        return {
+            ...e,
+            dist: ((player.x - e.x)**2 + (player.y - e.y)**2)
+        };
+    }).sort((a, b) => b.dist - a.dist);
+
+    for (const e of sortedEnemies) {
+        if (!e.alive) continue;
+
+        const spriteX = e.x - player.x;
+        const spriteY = e.y - player.y;
+
+        // 카메라 변환
+        const invDet = 1.0 / (player.planeX * player.dirY - player.dirX * player.planeY);
+        const transformX = invDet * (player.dirY * spriteX - player.dirX * spriteY);
+        const transformY = invDet * (-player.planeY * spriteX + player.planeX * spriteY);
+
+        if (transformY <= 0.1) continue;
+
+        const spriteScreenX = Math.floor((W / 2) * (1 + transformX / transformY));
+        const spriteHeight = Math.abs(Math.floor(H / transformY));
+        const spriteWidth = Math.abs(Math.floor(H / transformY));
+
+        let drawStartY = Math.floor(-spriteHeight / 2 + H / 2);
+        if (drawStartY < 0) drawStartY = 0;
+        let drawEndY = Math.floor(spriteHeight / 2 + H / 2);
+        if (drawEndY >= H) drawEndY = H - 1;
+
+        let drawStartX = Math.floor(-spriteWidth / 2 + spriteScreenX);
+        if (drawStartX < 0) drawStartX = 0;
+        let drawEndX = Math.floor(spriteWidth / 2 + spriteScreenX);
+        if (drawEndX >= W) drawEndX = W - 1;
+
+        // 절차적 카코데몬 / 임프 스타일 몬스터 그리기
+        const shade = Math.min(1.0, 1.6 / (transformY * 0.7 + 0.6));
+        for (let stripe = drawStartX; stripe < drawEndX; stripe++) {
+            if (transformY < zBuffer[stripe]) {
+                const texXRatio = (stripe - (-spriteWidth / 2 + spriteScreenX)) / spriteWidth;
+                
+                for (let y = drawStartY; y < drawEndY; y++) {
+                    const texYRatio = (y - (-spriteHeight / 2 + H / 2)) / spriteHeight;
+                    
+                    // 원형 몸체 계산
+                    const distFromCenter = Math.hypot(texXRatio - 0.5, texYRatio - 0.5);
+                    if (distFromCenter < 0.42) {
+                        ctx.fillStyle = `rgb(${Math.floor(180 * shade)}, ${Math.floor(20 * shade)}, ${Math.floor(20 * shade)})`;
+                        
+                        // 큰 외눈박이 눈 (Cacodemon Eye)
+                        const eyeDist = Math.hypot(texXRatio - 0.5, texYRatio - 0.4);
+                        if (eyeDist < 0.12) {
+                            ctx.fillStyle = '#44ff44'; // 초록빛 악마 눈
+                            if (eyeDist < 0.05) ctx.fillStyle = '#000000'; // 눈동자
+                        }
+                        // 입과 이빨
+                        if (texYRatio > 0.55 && texYRatio < 0.72 && Math.abs(texXRatio - 0.5) < 0.25) {
+                            ctx.fillStyle = (Math.floor(texXRatio * 20) % 2 === 0) ? '#ffffff' : '#220000';
+                        }
+
+                        ctx.fillRect(stripe, y, 1, 1);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 샷건 총기 렌더링
+function renderWeapon() {
+    const gunX = W / 2;
+    const gunY = H + 5;
+    const recoil = player.shooting > 4 ? 12 : 0;
+
+    ctx.save();
+    ctx.translate(gunX, gunY - recoil);
+
+    // 총신 (더블 배럴 샷건 스타일)
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-18, -45, 16, 45);
+    ctx.fillRect(2, -45, 16, 45);
+
+    // 총구 하이라이트
+    ctx.fillStyle = '#444';
+    ctx.fillRect(-16, -45, 12, 6);
+    ctx.fillRect(4, -45, 12, 6);
+
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(-10, -42, 4, 0, Math.PI * 2);
+    ctx.arc(10, -42, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 총기 손잡이 / 몸체
+    ctx.fillStyle = '#5c2c16'; // 나무 개머리판 느낌
+    ctx.fillRect(-14, -18, 28, 25);
+
+    // 총구 화염 (Muzzle Flash)
+    if (player.shooting > 4) {
+        ctx.fillStyle = '#ffcc00';
+        ctx.beginPath();
+        ctx.arc(0, -60, 22, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ff3300';
+        ctx.beginPath();
+        ctx.arc(0, -60, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, -60, 6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+// FPS 카운터 및 루프
+let lastTime = performance.now();
+let frames = 0;
+let fpsTimer = 0;
+
+function loop(currentTime) {
+    const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
+    lastTime = currentTime;
+
+    update(dt);
+    render();
+
+    // FPS 계산
+    frames++;
+    fpsTimer += dt;
+    if (fpsTimer >= 1.0) {
+        document.getElementById('fps').innerText = frames;
+        frames = 0;
+        fpsTimer = 0;
+    }
+
+    requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
