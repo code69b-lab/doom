@@ -97,7 +97,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(10, 0, 0, 0.92);
+            background: rgba(10, 0, 0, 0.94);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -121,7 +121,7 @@
         }
         .btn-start {
             margin-top: 20px;
-            padding: 12px 28px;
+            padding: 12px 30px;
             background: #990000;
             color: #fff;
             border: 2px solid #ff4444;
@@ -139,13 +139,13 @@
             font-size: 13px;
             color: #aaa;
             text-align: center;
-            line-height: 1.6;
+            line-height: 1.8;
         }
         .key-pill {
             display: inline-block;
             background: #252525;
             border: 1px solid #555;
-            padding: 2px 6px;
+            padding: 2px 7px;
             border-radius: 3px;
             color: #ff4444;
             font-weight: bold;
@@ -159,7 +159,8 @@
     <div id="crosshair"></div>
     <div id="ui-overlay">
         <span>FPS: <span id="fps">60</span></span><br>
-        <span>KILLS: <span id="kills">0</span> / <span id="total-kills">0</span></span>
+        <span>KILLS: <span id="kills">0</span> / <span id="total-kills">0</span></span><br>
+        <span style="font-size:11px; color:#aaa;">입력키: <span id="debug-key">None</span></span>
     </div>
 
     <!-- Retro DOOM Status Bar -->
@@ -185,10 +186,9 @@
     <!-- Start / Click to Play Screen -->
     <div id="start-screen">
         <h1>DOOM HTML</h1>
-        <p>화면을 클릭하면 마우스 조준이 활성화되고 게임이 시작됩니다!</p>
+        <p>클릭하면 게임 화면으로 진입합니다!</p>
         <p style="margin-top: 10px;">
-            <span class="key-pill">W</span> <span class="key-pill">A</span> <span class="key-pill">S</span> <span class="key-pill">D</span> 이동 
-            | <span class="key-pill">마우스</span> 또는 <span class="key-pill">←</span> <span class="key-pill">→</span> 회전
+            <span class="key-pill">W</span> <span class="key-pill">A</span> <span class="key-pill">S</span> <span class="key-pill">D</span> 또는 <span class="key-pill">방향키</span> : 이동 및 회전
         </p>
         <p><span class="key-pill">마우스 좌클릭</span> 또는 <span class="key-pill">SPACE</span> : 발사</p>
         <button class="btn-start" id="start-btn">게임 시작 (START)</button>
@@ -196,7 +196,7 @@
 </div>
 
 <div id="instructions">
-    💡 <b>조작법:</b> <span class="key-pill">W</span><span class="key-pill">S</span> 전진/후진 | <span class="key-pill">A</span><span class="key-pill">D</span> 좌우 평행이동 | <span class="key-pill">좌클릭</span> 또는 <span class="key-pill">SPACE</span> 발사 | <span class="key-pill">ESC</span> 마우스 해제
+    💡 <b>조작법:</b> <span class="key-pill">W</span><span class="key-pill">S</span>(또는 ↑/↓) 이동 | <span class="key-pill">A</span><span class="key-pill">D</span> 좌우 평행이동 | <span class="key-pill">←</span><span class="key-pill">→</span> 또는 <span class="key-pill">마우스</span> 회전 | <span class="key-pill">마우스 클릭 / 스페이스바</span> 발사
 </div>
 
 <script>
@@ -207,7 +207,7 @@
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
 const W = 320;
-const H = 160; // HUD를 제외한 3D 뷰포트 높이
+const H = 160;
 canvas.width = W;
 canvas.height = 200;
 
@@ -277,7 +277,7 @@ const MAP = [
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 ];
 
-// 텍스처 생성 (64x64 픽셀)
+// 텍스처 생성
 const TEX_SIZE = 64;
 const textures = [];
 
@@ -331,7 +331,7 @@ function generateTextures() {
 }
 generateTextures();
 
-// 플레이어 상태
+// 플레이어 상태 (시작 위치: 2.5, 2.5)
 const player = {
     x: 2.5,
     y: 2.5,
@@ -348,34 +348,77 @@ const player = {
     invulnerableTime: 0
 };
 
-// 몬스터 설정: 플레이어 스폰 위치에서 멀리 배치
+// 몬스터 시작 위치: 플레이어(2.5, 2.5)와 확실히 먼 곳에 배치
 const enemies = [
-    { x: 5.5, y: 5.5, hp: 3, alive: true, alert: false, attackCooldown: 1.0 },
-    { x: 9.5, y: 3.5, hp: 3, alive: true, alert: false, attackCooldown: 1.0 },
-    { x: 13.5, y: 4.5, hp: 4, alive: true, alert: false, attackCooldown: 1.0 },
-    { x: 10.5, y: 10.5, hp: 3, alive: true, alert: false, attackCooldown: 1.0 },
-    { x: 3.5, y: 13.5, hp: 4, alive: true, alert: false, attackCooldown: 1.0 },
-    { x: 8.5, y: 13.5, hp: 5, alive: true, alert: false, attackCooldown: 1.0 }
+    { x: 9.5, y: 3.5, hp: 3, alive: true, alert: false, attackCooldown: 1.5 },
+    { x: 13.5, y: 4.5, hp: 4, alive: true, alert: false, attackCooldown: 1.5 },
+    { x: 10.5, y: 10.5, hp: 3, alive: true, alert: false, attackCooldown: 1.5 },
+    { x: 3.5, y: 13.5, hp: 4, alive: true, alert: false, attackCooldown: 1.5 },
+    { x: 8.5, y: 13.5, hp: 5, alive: true, alert: false, attackCooldown: 1.5 },
+    { x: 13.5, y: 13.5, hp: 4, alive: true, alert: false, attackCooldown: 1.5 }
 ];
 document.getElementById('total-kills').innerText = enemies.length;
 
-// 키보드 입력 핸들링 (대소문자/한글 IME 모두 지원)
-const keys = {};
-window.addEventListener('keydown', e => {
-    keys[e.code] = true;
-    keys[e.key.toLowerCase()] = true;
+// 입력 상태 키 맵
+const keys = {
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+    rotLeft: false,
+    rotRight: false
+};
 
-    if (e.code === 'Space' || e.key === ' ') {
+const debugKeySpan = document.getElementById('debug-key');
+
+function handleKey(e, isDown) {
+    const code = e.code;
+    const key = (e.key || '').toLowerCase();
+    const which = e.which || e.keyCode;
+
+    // 전진: W, KeyW, ArrowUp, 한글 ㅈ(which 87)
+    if (code === 'KeyW' || key === 'w' || key === 'ㅈ' || which === 87 || code === 'ArrowUp' || key === 'arrowup') {
+        keys.forward = isDown;
+        if (isDown) debugKeySpan.innerText = 'W (전진)';
+    }
+    // 후진: S, KeyS, ArrowDown, 한글 ㄴ(which 83)
+    if (code === 'KeyS' || key === 's' || key === 'ㄴ' || which === 83 || code === 'ArrowDown' || key === 'arrowdown') {
+        keys.backward = isDown;
+        if (isDown) debugKeySpan.innerText = 'S (후진)';
+    }
+    // 좌측 이동: A, KeyA, 한글 ㅁ(which 65)
+    if (code === 'KeyA' || key === 'a' || key === 'ㅁ' || which === 65) {
+        keys.left = isDown;
+        if (isDown) debugKeySpan.innerText = 'A (좌이동)';
+    }
+    // 우측 이동: D, KeyD, 한글 ㅇ(which 68)
+    if (code === 'KeyD' || key === 'd' || key === 'ㅇ' || which === 68) {
+        keys.right = isDown;
+        if (isDown) debugKeySpan.innerText = 'D (우이동)';
+    }
+    // 좌회전: ArrowLeft
+    if (code === 'ArrowLeft' || key === 'arrowleft' || which === 37) {
+        keys.rotLeft = isDown;
+        if (isDown) debugKeySpan.innerText = '← (좌회전)';
+    }
+    // 우회전: ArrowRight
+    if (code === 'ArrowRight' || key === 'arrowright' || which === 39) {
+        keys.rotRight = isDown;
+        if (isDown) debugKeySpan.innerText = '→ (우회전)';
+    }
+
+    // 발사: Space
+    if (isDown && (code === 'Space' || key === ' ' || which === 32)) {
         shootGun();
+        debugKeySpan.innerText = 'SPACE (발사)';
         e.preventDefault();
     }
-});
-window.addEventListener('keyup', e => {
-    keys[e.code] = false;
-    keys[e.key.toLowerCase()] = false;
-});
+}
 
-// 마우스 및 포인터 락
+window.addEventListener('keydown', e => handleKey(e, true));
+window.addEventListener('keyup', e => handleKey(e, false));
+
+// 마우스 및 시작 화면
 const gameContainer = document.getElementById('game-container');
 const startScreen = document.getElementById('start-screen');
 
@@ -392,22 +435,25 @@ function startGame() {
 
 startScreen.addEventListener('click', startGame);
 
-// 게임 컨테이너 클릭 시 언제든 포인터 락 재요청 및 발사
+// 게임 컨테이너 클릭 시 발사 & 포인터락
 gameContainer.addEventListener('mousedown', e => {
-    if (!isGameStarted) return;
+    if (!isGameStarted) {
+        startGame();
+        return;
+    }
     if (e.button === 0) {
+        shootGun();
         if (document.pointerLockElement !== gameContainer) {
             try { gameContainer.requestPointerLock(); } catch(err) {}
         }
-        shootGun();
     }
 });
 
-// 마우스 회전 (포인터 락 상관없이 마우스 이동 감지 지원)
+// 마우스 회전
 window.addEventListener('mousemove', e => {
     if (!isGameStarted) return;
     if (document.pointerLockElement === gameContainer) {
-        rotatePlayer(e.movementX * 0.0032);
+        rotatePlayer(e.movementX * 0.0035);
     }
 });
 
@@ -429,7 +475,7 @@ function shootGun() {
     player.flash = 3;
     playSound('shoot');
 
-    // 샷건 히트스캔 판정 (중앙 조준점 근처)
+    // 샷건 히트스캔 판정
     let bestDist = Infinity;
     let hitEnemy = null;
 
@@ -439,10 +485,8 @@ function shootGun() {
         const dy = enemy.y - player.y;
         const dist = Math.hypot(dx, dy);
 
-        // 조준 각도 검사 (더 넓고 관대하게 판정: 0.85)
         const dot = (dx * player.dirX + dy * player.dirY) / dist;
         if (dot > 0.85 && dist < bestDist) {
-            // 벽 가림 체크
             let blocked = false;
             let steps = Math.floor(dist * 4);
             for (let i = 1; i < steps; i++) {
@@ -463,7 +507,7 @@ function shootGun() {
     if (hitEnemy) {
         hitEnemy.hp--;
         playSound('hit');
-        hitEnemy.alert = true; // 맞으면 바로 추적
+        hitEnemy.alert = true;
         if (hitEnemy.hp <= 0) {
             hitEnemy.alive = false;
             player.kills++;
@@ -489,37 +533,35 @@ const zBuffer = new Float64Array(W);
 
 // 업데이트 루프
 function update(dt) {
-    if (!isGameStarted) return; // 게임 시작 전에는 업데이트 중단
+    if (!isGameStarted) return;
 
-    const moveSpeed = 3.2 * dt;
+    const moveSpeed = 3.5 * dt;
     const rotSpeed = 2.4 * dt;
 
-    // 회전 (화살표 좌우키)
-    if (keys['ArrowLeft'] || keys['arrowleft']) rotatePlayer(-rotSpeed);
-    if (keys['ArrowRight'] || keys['arrowright']) rotatePlayer(rotSpeed);
+    if (keys.rotLeft) rotatePlayer(-rotSpeed);
+    if (keys.rotRight) rotatePlayer(rotSpeed);
 
     let moveX = 0;
     let moveY = 0;
 
-    // 이동 (WASD + 화살표 위/아래)
-    if (keys['KeyW'] || keys['w']) {
+    if (keys.forward) {
         moveX += player.dirX * moveSpeed;
         moveY += player.dirY * moveSpeed;
     }
-    if (keys['KeyS'] || keys['s']) {
+    if (keys.backward) {
         moveX -= player.dirX * moveSpeed;
         moveY -= player.dirY * moveSpeed;
     }
-    if (keys['KeyD'] || keys['d']) {
+    if (keys.right) {
         moveX += -player.dirY * moveSpeed;
         moveY += player.dirX * moveSpeed;
     }
-    if (keys['KeyA'] || keys['a']) {
+    if (keys.left) {
         moveX -= -player.dirY * moveSpeed;
         moveY -= player.dirX * moveSpeed;
     }
 
-    // 충돌 판정 및 이동 적용
+    // 슬라이딩 충돌 판정
     const buffer = 0.25;
     const newX = player.x + moveX;
     const newY = player.y + moveY;
@@ -535,7 +577,7 @@ function update(dt) {
     if (player.flash > 0) player.flash--;
     if (player.invulnerableTime > 0) player.invulnerableTime -= dt;
 
-    // 몬스터 AI & 쿨다운 공격
+    // 몬스터 AI
     for (const enemy of enemies) {
         if (!enemy.alive) continue;
         const dx = player.x - enemy.x;
@@ -544,19 +586,18 @@ function update(dt) {
 
         if (enemy.attackCooldown > 0) enemy.attackCooldown -= dt;
 
-        // 시야 거리 7 이내이거나 이미 경계 상태일 때 추적
-        if (dist < 7) enemy.alert = true;
+        // 플레이어 발견 거리: 6
+        if (dist < 6) enemy.alert = true;
 
         if (enemy.alert) {
             if (dist > 0.9) {
-                // 이동 속도 적당히 조정 (1.0)
                 enemy.x += (dx / dist) * 1.0 * dt;
                 enemy.y += (dy / dist) * 1.0 * dt;
             } else if (dist <= 0.9 && enemy.attackCooldown <= 0 && player.invulnerableTime <= 0) {
-                // 초당 최대 1번만 공격
-                enemy.attackCooldown = 1.0;
-                player.invulnerableTime = 0.5; // 무적 시간 0.5초 부여
-                
+                // 공격 쿨다운 1.5초 & 무적시간 0.5초
+                enemy.attackCooldown = 1.5;
+                player.invulnerableTime = 0.5;
+
                 if (player.armor > 0) {
                     player.armor = Math.max(0, player.armor - 5);
                     player.health -= 5;
@@ -582,7 +623,7 @@ function render() {
     const imgData = ctx.getImageData(0, 0, W, H);
     const pixels = imgData.data;
 
-    // 천장 & 바닥 렌더링
+    // 천장 & 바닥
     for (let y = 0; y < H; y++) {
         const isFloor = y > H / 2;
         const r = isFloor ? 45 : 20;
@@ -682,13 +723,13 @@ function render() {
 
     ctx.putImageData(imgData, 0, 0);
 
-    // 2. 적 스프라이트 렌더링
+    // 2. 적 스프라이트
     renderSprites();
 
-    // 3. 무기 렌더링
+    // 3. 무기
     renderWeapon();
 
-    // 총구 화염 및 피격 플래시
+    // 플래시
     if (player.flash > 0) {
         ctx.fillStyle = 'rgba(255, 230, 150, 0.35)';
         ctx.fillRect(0, 0, W, H);
